@@ -1,0 +1,132 @@
+{
+  "description": "Simulates a cascading RDBMS outage followed by MCP Host failure — a realistic multi-component incident scenario.",
+  "scenario": "RDBMS outage triggers connection pool exhaustion across API layer, then MCP hosts start failing due to upstream DB timeouts.",
+  "waves": [
+    {
+      "name": "Wave 1 — RDBMS Primary Failure (P0)",
+      "delay_seconds": 0,
+      "signals": [
+        {
+          "component_id": "RDBMS_PRIMARY_01",
+          "component_type": "RDBMS",
+          "error_type": "CONNECTION_REFUSED",
+          "severity": "CRITICAL",
+          "message": "PostgreSQL primary on db-prod-01:5432 is not accepting connections",
+          "metadata": { "host": "db-prod-01", "port": 5432, "attempts": 5, "region": "us-east-1" }
+        },
+        {
+          "component_id": "RDBMS_PRIMARY_01",
+          "component_type": "RDBMS",
+          "error_type": "CONNECTION_REFUSED",
+          "severity": "CRITICAL",
+          "message": "Health probe failed for RDBMS_PRIMARY_01",
+          "metadata": { "probe": "TCP", "latency_ms": 5000 }
+        },
+        {
+          "component_id": "RDBMS_REPLICA_01",
+          "component_type": "RDBMS",
+          "error_type": "REPLICATION_LAG",
+          "severity": "HIGH",
+          "message": "Replica lag exceeded 60s — promoting replica",
+          "metadata": { "lag_seconds": 72, "replica": "db-replica-01" }
+        }
+      ]
+    },
+    {
+      "name": "Wave 2 — API Layer Connection Pool Exhaustion (P1)",
+      "delay_seconds": 15,
+      "signals": [
+        {
+          "component_id": "API_GATEWAY_01",
+          "component_type": "API",
+          "error_type": "CONNECTION_POOL_EXHAUSTED",
+          "severity": "HIGH",
+          "message": "API gateway connection pool exhausted — all DB connections held waiting",
+          "metadata": { "pool_size": 100, "active": 100, "waiting": 47, "service": "api-gateway" }
+        },
+        {
+          "component_id": "API_GATEWAY_01",
+          "component_type": "API",
+          "error_type": "TIMEOUT",
+          "severity": "HIGH",
+          "message": "Request timeout after 30s waiting for DB connection",
+          "metadata": { "timeout_ms": 30000, "endpoint": "/api/v2/orders" }
+        },
+        {
+          "component_id": "API_GATEWAY_02",
+          "component_type": "API",
+          "error_type": "LATENCY_SPIKE",
+          "severity": "HIGH",
+          "message": "P99 latency spiked to 28s on API_GATEWAY_02",
+          "metadata": { "p99_ms": 28000, "p50_ms": 450, "rps": 1200 }
+        }
+      ]
+    },
+    {
+      "name": "Wave 3 — MCP Host Failures Due to DB Upstream (P1)",
+      "delay_seconds": 30,
+      "signals": [
+        {
+          "component_id": "MCP_HOST_PROD_01",
+          "component_type": "MCP_HOST",
+          "error_type": "UPSTREAM_TIMEOUT",
+          "severity": "HIGH",
+          "message": "MCP host cannot reach DB upstream — tool calls timing out",
+          "metadata": { "tool": "query_database", "timeout_ms": 15000, "host": "mcp-prod-01" }
+        },
+        {
+          "component_id": "MCP_HOST_PROD_02",
+          "component_type": "MCP_HOST",
+          "error_type": "UPSTREAM_TIMEOUT",
+          "severity": "HIGH",
+          "message": "MCP host context injection failing — upstream unavailable",
+          "metadata": { "tool": "fetch_user_context", "host": "mcp-prod-02" }
+        }
+      ]
+    },
+    {
+      "name": "Wave 4 — Cache Degradation Due to Miss Storm (P2)",
+      "delay_seconds": 45,
+      "signals": [
+        {
+          "component_id": "CACHE_CLUSTER_01",
+          "component_type": "CACHE",
+          "error_type": "CACHE_MISS_STORM",
+          "severity": "MEDIUM",
+          "message": "Cache hit rate dropped from 94% to 12% — stampede to origin",
+          "metadata": { "hit_rate": 0.12, "evictions_per_sec": 8400, "cluster": "redis-prod-01" }
+        },
+        {
+          "component_id": "CACHE_CLUSTER_01",
+          "component_type": "CACHE",
+          "error_type": "MEMORY_PRESSURE",
+          "severity": "MEDIUM",
+          "message": "Redis memory at 89% — LRU evictions accelerating",
+          "metadata": { "used_mb": 12800, "max_mb": 14400 }
+        }
+      ]
+    },
+    {
+      "name": "Wave 5 — Async Queue Backlog (P3)",
+      "delay_seconds": 60,
+      "signals": [
+        {
+          "component_id": "ASYNC_QUEUE_ORDERS",
+          "component_type": "ASYNC_QUEUE",
+          "error_type": "CONSUMER_LAG",
+          "severity": "LOW",
+          "message": "Order processing queue lag is 45,000 messages — consumers blocked on DB",
+          "metadata": { "lag": 45000, "consumer_group": "order-processor", "topic": "orders.created" }
+        },
+        {
+          "component_id": "NOSQL_EVENTS_01",
+          "component_type": "NOSQL",
+          "error_type": "WRITE_TIMEOUT",
+          "severity": "LOW",
+          "message": "Event store write timeout — downstream consumers will have stale reads",
+          "metadata": { "collection": "events", "timeout_ms": 5000 }
+        }
+      ]
+    }
+  ]
+}

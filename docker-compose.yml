@@ -1,0 +1,104 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ims_db
+      POSTGRES_USER: ims_user
+      POSTGRES_PASSWORD: ims_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ims_user -d ims_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongodb:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ims_user
+      MONGO_INITDB_ROOT_PASSWORD: ims_password
+      MONGO_INITDB_DATABASE: ims_signals
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis/redis-stack:latest
+    ports:
+      - "6379:6379"
+      - "8001:8001"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ims_user:ims_password@postgres:5432/ims_db
+      MONGODB_URL: mongodb://ims_user:ims_password@mongodb:27017/ims_signals?authSource=admin
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGINS: "http://localhost:3000,http://frontend:3000"
+      DEBUG: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000
+        VITE_WS_URL: ws://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  seeder:
+    image: python:3.12-slim
+    volumes:
+      - ./scripts:/scripts
+    environment:
+      BACKEND_URL: http://backend:8000
+    depends_on:
+      - backend
+    restart: "no"
+    command: >
+      sh -c "
+        pip install httpx --quiet &&
+        echo 'Waiting for backend to be ready...' &&
+        sleep 10 &&
+        python /scripts/mock_failure_event.py --host http://backend:8000 --fast --burst &&
+        echo 'Simulation complete — dashboard is populated.'
+      "
+
+volumes:
+  postgres_data:
+  mongodb_data:
+  redis_data:
