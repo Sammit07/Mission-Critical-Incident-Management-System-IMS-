@@ -81,7 +81,7 @@ class IncidentService:
                 if new_status == "CLOSED" and wi.rca:
                     wi.end_time = now
                     delta = wi.rca.incident_end - wi.rca.incident_start
-                    wi.mttr_seconds = int(abs(delta.total_seconds()))
+                    wi.mttr_seconds = int(delta.total_seconds())
 
                 serialized = self._serialize(wi)
 
@@ -132,7 +132,7 @@ class IncidentService:
                         submitted_by=rca_data.submitted_by,
                     ))
 
-        mttr = int(abs((rca_data.incident_end - rca_data.incident_start).total_seconds()))
+        mttr = int((rca_data.incident_end - rca_data.incident_start).total_seconds())
         await websocket_manager.broadcast({"type": "rca_submitted", "work_item_id": work_item_id})
 
         return {

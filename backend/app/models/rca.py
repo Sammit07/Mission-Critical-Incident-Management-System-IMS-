@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 RootCauseCategory = Literal[
     "HUMAN_ERROR",
@@ -23,6 +23,15 @@ class RCASubmission(BaseModel):
     fix_applied: str = Field(..., min_length=10, description="Description of the fix applied")
     prevention_steps: str = Field(..., min_length=10, description="Steps to prevent recurrence")
     submitted_by: str | None = None
+
+    @model_validator(mode="after")
+    def end_must_be_after_start(self) -> "RCASubmission":
+        if self.incident_end <= self.incident_start:
+            raise ValueError(
+                "incident_end must be after incident_start — "
+                f"got start={self.incident_start.isoformat()}, end={self.incident_end.isoformat()}"
+            )
+        return self
 
 
 class RCAResponse(BaseModel):
