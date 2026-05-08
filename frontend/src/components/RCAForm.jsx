@@ -64,6 +64,11 @@ export default function RCAForm({ incident, onSubmitted, onClose, closing }) {
       return
     }
 
+    if (form.incident_end && new Date(form.incident_end) <= new Date(form.incident_start)) {
+      toast.warn('Incident End must be after Incident Start.')
+      return
+    }
+
     setSubmitting(true)
     try {
       await incidentApi.submitRca(incident.id, {
