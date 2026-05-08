@@ -2,6 +2,8 @@
 
 A production-grade IMS that ingests high-volume failure signals from distributed infrastructure, debounces them into trackable Work Items, and provides a real-time React dashboard for managing incidents to closure with mandatory Root Cause Analysis.
 
+<img width="959" height="470" alt="Screenshot 2026-05-08 013210" src="https://github.com/user-attachments/assets/41405b46-1b66-4663-9834-ccedd900eb4d" />
+
 ---
 
 ## Architecture Diagram
